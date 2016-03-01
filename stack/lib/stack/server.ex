@@ -3,8 +3,8 @@ defmodule Stack.Server do
 
   # External API
 
-  def start_link(stack) do
-    GenServer.start_link(__MODULE__, stack, name: __MODULE__)
+  def start_link (stash_pid) do
+    {:ok, _pid} = GenServer.start_link(__MODULE__, stash_pid, name: __MODULE__)
   end
 
   def pop do
@@ -17,14 +17,25 @@ defmodule Stack.Server do
 
   # GenServer implementation
 
-  def handle_call(:pop, _from, []), do: raise "Empty stack"
-  def handle_call(:pop, _from, [head | tail]) do
-    {:reply, head, tail}
+  def init(stash_pid) do
+    curren_stack = Stack.Stash.get_value stash_pid
+    {:ok, {curren_stack, stash_pid}}
   end
 
-  def handle_call({:push, v}, _from, stack) do
-    new_stack = [v | stack]
+  def handle_call(:pop, _from, {[], _stash_pid}) do
+    raise "Empty stack"
+  end
 
-    {:reply, new_stack, new_stack}
+  def handle_call(:pop, _from, {[head | tail], stash_pid}) do
+    {:reply, head, {tail, stash_pid}}
+  end
+
+  def handle_call({:push, v}, _from, {current_stack, stash_pid}) do
+    new_stack = [v | current_stack]
+    {:reply, new_stack, {new_stack, stash_pid}}
+  end
+
+  def terminate(_reason, {current_stack, stash_pid}) do
+    Stack.Stash.save_value stash_pid, current_stack
   end
 end
